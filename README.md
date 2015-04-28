@@ -1,4 +1,4 @@
-Some stats collected from our babolat play rackets.
+Some stats collected from our babolat play rackets. http://diox.github.io/la-playa/
 
 How to run locally:
 - python -m SimpleHTTPServer 8181
