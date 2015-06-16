@@ -10,13 +10,16 @@ URLS_PREFIX = 'https://en.babolatplay.com'
 LOGIN_PAGE_URL = URLS_PREFIX + '/login'
 LOGIN_URL = URLS_PREFIX + '/login_check'
 JSON_URL = URLS_PREFIX + '/sessions/evolution.json'
-USERNAME = os.environ['PLAY_USERNAME']
+USERNAME = os.environ['PLAY_USERMAIL']
 PASSWORD = os.environ['PLAY_PASSWORD']
 
 
 class ParseError(Exception):
     pass
 
+
+class CredentialError(Exception):
+    pass
 
 def login(player_name):
     response = requests.get(LOGIN_PAGE_URL)
@@ -36,6 +39,10 @@ def login(player_name):
     response = requests.post(LOGIN_URL, data=data, cookies=cookies,
                              allow_redirects=False)
     cookies = response.cookies
+
+    if len(cookies) == 0:
+        raise CredentialError('Could not login with credentials')
+
     content = requests.get(JSON_URL, cookies=cookies).content
     try:
         data = json.loads(content)
@@ -48,7 +55,7 @@ def login(player_name):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print ('Usage: PLAY_PASSWORD=pass PLAY_USERMAME=name %s <player_name>'
-            % __file__)
+        print ('Usage: PLAY_PASSWORD=pass PLAY_USERMAIL=mail %s <player_name>'
+               % __file__)
         sys.exit(1)
     login(sys.argv[1])
