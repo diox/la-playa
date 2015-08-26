@@ -8,18 +8,15 @@ var width  = document.body.clientWidth - margin.left - margin.right;
 var height = document.body.clientHeight - margin.top - margin.bottom - 40;
 
 var parseDate = d3.time.format.utc("%Y-%m-%d %H:%M:%S").parse;
-var dateFormat = d3.time.format("%d / %m");
+var dateFormat = d3.time.format("%d/%m");
 
-// Don't use .time scale on x for now, it lumps together session data on the
-// same date. Need to find a way to tweak it someday.
-// var x = d3.time.scale().range([0, width]);
 var x = d3.scale.ordinal().rangeRoundPoints([0, width], 0);
 var y = d3.scale.linear().range([height, 0]);
 
 var xAxis = d3.svg.axis()
     .scale(x)
     .tickFormat(function(d) {
-        return dateFormat(d);
+        if (d.indexOf('(') > -1) { return ''; } else { return d; }
     })
     .orient("bottom");
 
@@ -52,12 +49,9 @@ function buildValuesMap(name, d) {
     if (!d.date) {
         console.error(d);
     }
-    if (name == 'percentage_forcehands') {
-
-    }
     return {
-        type: d.type,  // Used to differenciate matches from training on the points.
-        name: name,  // Repeated for convenience, used when setting color on the points.
+        type: d.type,  // Used to differenciate matches from training.
+        name: name,  // Repeated for convenience, used when setting color.
         date: d.date,  // x.
         percentage: +d[name],  // y.
     };
@@ -71,42 +65,36 @@ function buildAndFilterValuesMap(name, data) {
     }).map(buildValuesMap.bind(null, name));
 }
 
+function extractDates(dates, data) {
+    var currentDate;
+    var sessionNumber = 1;
+    var lastDate;
+
+    for (var i = 0; i < data.length; i++) {
+        // Only keep the date part... Unless we already saw that date.
+        currentDate = dateFormat(parseDate(data[i].start_at));
+        if (currentDate === lastDate) {
+            sessionNumber++;
+            data[i].date = currentDate + ' (' + sessionNumber + ')';
+        } else {
+            sessionNumber = 1;
+            data[i].date = currentDate;
+        }
+        dates.push(data[i].date);
+        lastDate = currentDate;
+    }
+}
+
 function buildGraph(error, data_mat, data_rik) {
     // Our session dates vary widly. Because we sometimes do 2-3 sessions the
-    // same day, we don't use a linear scale for the y-axis, but we still want
-    // to be able to group the data together. To do that, we round each date to
-    // the nearest 15 minutes window.
-    // This is horribly inefficient, doesn't take DST changes and other weird
-    // stuff into account, but should be enough for our needs.
+    // same day, we can't use a linear time scale for the y-axis - but we still
+    // want to be able to group individual data together.
+    // To do that, build a custom property holding the date and the session
+    // number: on dates where we don't play together, there simply won't be any
+    // data for one of the players, but that's fine.
     var dates = [];
-
-    // d3.js sets transform everything to strings, which we don't want, so
-    // let's remove duplicate values ourselves.
-    function arrayFirstUnique(array) {
-        return array.filter(function (a, b, array) {
-            // keeps first occurrence.
-            return array.indexOf(a) === b;
-        });
-    }
-
-    function dateSort(a, b) {
-        return a - b;
-    }
-
-    function clampDate(d) {
-        // First, get rid of seconds.
-        var date = d3.time.minute.round(parseDate(d.start_at));
-        var newMinutes = Math.round(date.getMinutes() / 15) * 15;
-        if (newMinutes === 60) {
-            date.setHours(date.getHours() + 1)
-        }
-        date.setMinutes(newMinutes);
-        d.date = date;
-        dates.push(d.date);
-    }
-    data_mat.forEach(clampDate);
-    data_rik.forEach(clampDate);
-    dates = arrayFirstUnique(dates).sort(dateSort);
+    extractDates(dates, data_mat);
+    extractDates(dates, data_rik);
 
     var seriesData = varNames.map(function(name) {
         return {
@@ -137,7 +125,7 @@ function buildGraph(error, data_mat, data_rik) {
 
     svg.append("g")
         .attr("class", "y axis")
-        .call(yAxis)
+        .call(yAxis);
 
     var line = d3.svg.line()
         .interpolate("cardinal")
@@ -152,12 +140,12 @@ function buildGraph(error, data_mat, data_rik) {
     series.append("path")
         .attr("class", "line mat")
         .attr("d", function (d) { return line(d.values); })
-        .style("stroke", function (d) { return color(d.name); })
+        .style("stroke", function (d) { return color(d.name); });
 
     series.append("path")
         .attr("class", "line rik")
         .attr("d", function (d) { return line(d.values_rik); })
-        .style("stroke", function (d) { return color(d.name); })
+        .style("stroke", function (d) { return color(d.name); });
 
     series.selectAll(".points")
         .data(function (d) { return d.values; })
@@ -165,8 +153,9 @@ function buildGraph(error, data_mat, data_rik) {
         .attr("class", function(d) { return "point mat " + d.type; })
         .attr("cx", function (d) { return x(d.date); })
         .attr("cy", function (d) { return y(d.percentage); })
-        .attr("r", function(d) { return (d.type == "training") ? "4px" : "6px";})
-        .style("fill", function (d) { return color(d.name); })
+        .attr("r", function(d) {
+            return (d.type == "training") ? "4px" : "6px";})
+        .style("fill", function (d) { return color(d.name); });
 
     series.selectAll(".points_rik")
         .data(function (d) { return d.values_rik; })
@@ -174,8 +163,9 @@ function buildGraph(error, data_mat, data_rik) {
         .attr("class", function(d) { return "point rik " + d.type; })
         .attr("cx", function (d) { return x(d.date); })
         .attr("cy", function (d) { return y(d.percentage); })
-        .attr("r", function(d) { return (d.type == "training") ? "4px" : "6px";})
-        .style("fill", function (d) { return color(d.name); })
+        .attr("r", function(d) {
+            return (d.type == "training") ? "4px" : "6px";})
+        .style("fill", function (d) { return color(d.name); });
 }
 
 queue()
