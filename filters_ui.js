@@ -1,11 +1,20 @@
 (function() {
-// Find all groups
+// Find all groups.
 var groups = document.querySelectorAll('.btn-group');
 for (var i = 0, il = groups.length; i < il; i++) {
     attachGroupBehaviour(groups[i]);
 }
 
 function attachGroupBehaviour(group) {
+    if (group.dataset.colored) {
+        var children = group.getElementsByTagName('li');
+        for (var i = 0, il = children.length; i < il; i++) {
+            // color is a global variable.
+            if (children[i].dataset.value) {
+                children[i].style.color = color(children[i].dataset.value);
+            }
+        }
+    }
     group.addEventListener('click', groupBehaviour);
 }
 
@@ -58,6 +67,7 @@ function collectActiveValues(group) {
 })();
 
 function updateSeries(activeSeries) {
+    // varNames is global.
     varNames.forEach(function (serie) {
         var series = d3.selectAll('.' + serie);
         series.classed('inactive', activeSeries.indexOf(serie) === -1);
@@ -65,9 +75,9 @@ function updateSeries(activeSeries) {
 }
 
 function updatePaths(activePaths) {
-    var paths = d3.selectAll('.line').classed('inactive', true);
-    var paths = d3.selectAll('.point').classed('inactive', true);
+    d3.selectAll('.line').classed('inactive', true);
+    d3.selectAll('.point').classed('inactive', true);
     activePaths.forEach(function (activePath) {
         d3.selectAll('.' + activePath).classed('inactive', false);
-    })
+    });
 }
